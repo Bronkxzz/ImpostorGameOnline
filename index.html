@@ -37,4 +37,726 @@
         .container {
             max-width: 900px;
             width: 95%;
-            background-color: var(--card-bg
+            background-color: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            padding: 40px 30px;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--secondary-color);
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 0 0 10px rgba(255, 111, 97, 0.5);
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-light);
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background-color: #1a1a2e;
+            color: var(--text-light);
+            font-size: 1em;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            margin-top: 15px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 4px 15px rgba(106, 13, 173, 0.4);
+        }
+
+        .btn-primary:hover {
+            background-color: #8a2be2;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background-color: var(--card-bg);
+            color: var(--text-light);
+            border: 2px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: #3b3b6b;
+        }
+
+        .flex-row {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .flex-row button {
+            flex: 1;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .active {
+            display: block;
+        }
+
+        /* --- Tela de Espera/Jogo --- */
+
+        .game-info-card {
+            background-color: #1a1a2e;
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .player-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .player-list li {
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .player-list li:last-child {
+            border-bottom: none;
+        }
+
+        .player-list .host-tag {
+            background-color: var(--secondary-color);
+            color: var(--background-dark);
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            font-weight: 700;
+        }
+        
+        .role-word {
+            text-align: center;
+            margin: 30px 0;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: 700;
+            animation: pulse 1s infinite alternate;
+        }
+        
+        .role-impostor {
+            background-color: var(--error-color);
+            color: white;
+        }
+        
+        .role-innocent {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        @keyframes pulse {
+            from { box-shadow: 0 0 5px var(--primary-color); }
+            to { box-shadow: 0 0 20px var(--primary-color); }
+        }
+
+        .timer {
+            font-size: 3em;
+            font-weight: 700;
+            color: var(--secondary-color);
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .status-message {
+            text-align: center;
+            font-size: 1.1em;
+            margin-bottom: 20px;
+        }
+
+        /* Input específico para pistas/votos */
+        #clue-input {
+            margin-top: 10px;
+        }
+
+        .clue-list {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #1a1a2e;
+            border-radius: 10px;
+        }
+        
+        .clue-list h4 {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+
+        .clue-list p {
+            margin: 5px 0;
+        }
+        
+        .clue-list strong {
+            color: var(--primary-color);
+        }
+
+        /* --- Resultado --- */
+        .results-container h2 {
+            text-align: center;
+            color: var(--success-color);
+        }
+
+        .results-impostor {
+            color: var(--error-color) !important;
+        }
+
+        .vote-tally p {
+            font-size: 1.1em;
+            margin: 10px 0;
+            padding: 5px;
+            background-color: #2b2b4d;
+            border-radius: 5px;
+        }
+
+        .btn-restart {
+            background-color: var(--warning-color);
+            color: var(--background-dark);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <div id="home-screen" class="screen active">
+            <h1>🕵️ Impostor Online</h1>
+            <div id="name-input" class="input-group">
+                <label for="player-name">Como devemos te chamar?</label>
+                <input type="text" id="player-name" placeholder="Seu Nickname" value="JogadorAnônimo">
+            </div>
+
+            <div class="flex-row">
+                <button class="btn-primary" onclick="showScreen('create-screen')">🚀 Novo Jogo</button>
+                <button class="btn-secondary" onclick="showScreen('join-screen')">🎯 Junte-se ao Jogo</button>
+            </div>
+        </div>
+
+        <div id="create-screen" class="screen">
+            <h1>Criar Nova Partida</h1>
+            <div class="input-group">
+                <label for="create-game-name">Seu Nome:</label>
+                <input type="text" id="create-game-name" readonly>
+            </div>
+
+            <hr style="border-color: var(--border-color); margin: 20px 0;">
+            
+            <h2>⚙️ Configurações da Partida</h2>
+
+            <div class="input-group">
+                <label for="clue-time">Tempo para Pista (Segundos)</label>
+                <input type="number" id="clue-time" value="60" min="10" max="180">
+            </div>
+
+            <div class="input-group">
+                <label for="vote-time">Tempo para Discussão/Voto (Segundos)</label>
+                <input type="number" id="vote-time" value="90" min="30" max="300">
+            </div>
+
+            <div class="input-group">
+                <label for="rounds-per-player">Rodadas de Pistas (por Jogador)</label>
+                <input type="number" id="rounds-per-player" value="1" min="1" max="5">
+            </div>
+
+            <button class="btn-primary" onclick="handleCreateGame()">✅ Criar Jogo</button>
+            <button class="btn-secondary" onclick="showScreen('home-screen')">← Voltar</button>
+        </div>
+
+        <div id="join-screen" class="screen">
+            <h1>Juntar-se à Partida</h1>
+            <div class="input-group">
+                <label for="join-game-name">Seu Nome:</label>
+                <input type="text" id="join-game-name" readonly>
+            </div>
+            <div class="input-group">
+                <label for="game-id-input">ID da Partida:</label>
+                <input type="text" id="game-id-input" placeholder="Ex: a1b2c3d4">
+            </div>
+            <button class="btn-primary" onclick="handleJoinGame()">➡️ Entrar</button>
+            <button class="btn-secondary" onclick="showScreen('home-screen')">← Voltar</button>
+        </div>
+
+        <div id="lobby-screen" class="screen">
+            <h1 id="lobby-title">Lobby: Partida #ID</h1>
+            <div id="player-role-word" class="role-word"></div>
+            
+            <div class="game-info-card">
+                <h2>👥 Jogadores (<span id="player-count">0</span>/<span id="min-players">0</span>)</h2>
+                <ul id="lobby-player-list" class="player-list"></ul>
+                
+                <p>Configurações:</p>
+                <ul>
+                    <li>Tempo de Pista: <span id="conf-clue"></span>s</li>
+                    <li>Tempo de Voto: <span id="conf-vote"></span>s</li>
+                    <li>Rodadas: <span id="conf-rounds"></span></li>
+                </ul>
+            </div>
+            
+            <button id="start-game-btn" class="btn-primary" style="display: none;">▶️ Iniciar Jogo</button>
+            <button class="btn-secondary" onclick="window.location.reload()">Sair do Lobby</button>
+            <p id="lobby-message" style="margin-top: 10px; color: var(--warning-color);"></p>
+        </div>
+
+        <div id="game-screen" class="screen">
+            <div class="timer" id="game-timer">--:--</div>
+            <p class="status-message" id="game-status-message"></p>
+            <div id="player-role-word-game" class="role-word"></div>
+
+            <div class="game-info-card">
+                <h2>Rodada <span id="current-round">1</span> - Pistas</h2>
+                <p>É a vez de: <strong id="current-turn-player"></strong></p>
+
+                <div id="clue-input-area" class="input-group" style="display: none;">
+                    <label for="clue-input">Sua Pista (Apenas uma palavra):</label>
+                    <input type="text" id="clue-input" maxlength="20" placeholder="Ex: Comestível">
+                    <button class="btn-primary" onclick="submitClue()">Enviar Pista</button>
+                </div>
+
+                <div id="voting-area" class="input-group" style="display: none;">
+                    <label>Hora de Votar no Impostor!</label>
+                    <select id="vote-select"></select>
+                    <button class="btn-primary" onclick="submitVote()">Votar</button>
+                    <p id="votes-remaining"></p>
+                </div>
+            </div>
+
+            <div class="clue-list">
+                <h4>Pistas Dadas:</h4>
+                <div id="clues-list-container">Nenhuma pista dada.</div>
+            </div>
+
+        </div>
+
+        <div id="results-screen" class="screen">
+            <div class="results-container game-info-card">
+                <h2 id="final-result-message"></h2>
+                
+                <p>O Impostor era: <strong id="results-impostor-name" class="results-impostor"></strong></p>
+                <p>Palavra dos Inocentes: <strong><span id="results-innocent-word"></span></strong></p>
+                <p>Palavra do Impostor: <span id="results-impostor-word"></span></p>
+
+                <hr style="border-color: var(--border-color); margin: 20px 0;">
+
+                <h3>Contagem de Votos:</h3>
+                <div id="vote-tally-container" class="vote-tally"></div>
+
+                <button class="btn-restart" onclick="window.location.reload()">Voltar para o Início</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Variáveis Globais ---
+        let ws = null;
+        let gameId = null;
+        let playerId = null;
+        let playerName = "";
+        let isHost = false;
+        let gameState = {};
+        
+        const screens = {
+            'home-screen': document.getElementById('home-screen'),
+            'create-screen': document.getElementById('create-screen'),
+            'join-screen': document.getElementById('join-screen'),
+            'lobby-screen': document.getElementById('lobby-screen'),
+            'game-screen': document.getElementById('game-screen'),
+            'results-screen': document.getElementById('results-screen'),
+        };
+
+        // --- Funções de Navegação ---
+
+        function showScreen(screenId) {
+            Object.values(screens).forEach(screen => {
+                screen.classList.remove('active');
+            });
+            screens[screenId].classList.add('active');
+            
+            // Pré-preenchimento de nome
+            const name = document.getElementById('player-name').value;
+            if (screenId === 'create-screen') {
+                document.getElementById('create-game-name').value = name;
+            } else if (screenId === 'join-screen') {
+                document.getElementById('join-game-name').value = name;
+            }
+            playerName = name;
+        }
+
+        // --- Gerenciamento de Partida ---
+
+        function generateUniqueId() {
+            // Gera um ID único simples, usando o timestamp para garantir que seja diferente
+            return Math.random().toString(36).substring(2, 10); 
+        }
+
+        async function handleCreateGame() {
+            const name = document.getElementById('create-game-name').value;
+            const clueTime = parseInt(document.getElementById('clue-time').value);
+            const voteTime = parseInt(document.getElementById('vote-time').value);
+            const rounds = parseInt(document.getElementById('rounds-per-player').value);
+            
+            if (!name || name.length < 3) {
+                alert("Por favor, digite um nome válido.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/create_game/${name}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        clue_time: clueTime,
+                        vote_time: voteTime,
+                        rounds_per_player: rounds
+                    })
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    alert("Erro ao criar jogo: " + data.error);
+                    return;
+                }
+                
+                gameId = data.game_id;
+                playerId = data.host_id;
+                isHost = true;
+                
+                connectWebSocket();
+                showScreen('lobby-screen');
+
+            } catch (error) {
+                console.error('Erro de rede ao criar jogo:', error);
+                alert("Erro ao criar jogo. Tente novamente mais tarde.");
+            }
+        }
+
+        function handleJoinGame() {
+            const name = document.getElementById('join-game-name').value;
+            const id = document.getElementById('game-id-input').value.trim();
+
+            if (!name || name.length < 3 || !id || id.length !== 8) {
+                alert("Nome ou ID do jogo inválido.");
+                return;
+            }
+            
+            // Gera um ID de jogador único (diferente do host)
+            playerId = generateUniqueId(); 
+            gameId = id;
+            isHost = false;
+
+            connectWebSocket();
+            showScreen('lobby-screen');
+        }
+
+
+        // --- Conexão WebSocket ---
+
+        function connectWebSocket() {
+            // A URL do servidor no Render é a mesma URL que carregou o HTML
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const url = `${protocol}://${window.location.host}/ws/${gameId}/${playerId}/${playerName}`;
+            
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                console.log("Conexão WebSocket aberta.");
+                // Solicita os dados privados em caso de reconexão
+                if (gameState.status && gameState.status !== 'WAITING_FOR_PLAYERS') {
+                    ws.send(JSON.stringify({ command: "GET_PRIVATE_DATA" }));
+                }
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                handleMessage(message);
+            };
+
+            ws.onclose = (event) => {
+                console.log("Conexão WebSocket fechada:", event.reason);
+                if (event.code === 1011) { // Jogo encerrado pelo host
+                    alert("O Host encerrou a partida.");
+                    window.location.reload();
+                } else if (!screens['results-screen'].classList.contains('active')) {
+                     document.getElementById('lobby-message').innerText = "⚠️ Desconectado. Tentando reconectar...";
+                     setTimeout(connectWebSocket, 3000);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error("Erro WebSocket:", error);
+                document.getElementById('lobby-message').innerText = "❌ Erro de conexão! Verifique se o ID do jogo está correto.";
+            };
+        }
+        
+        // --- Manipulação de Mensagens (Onde a mágica acontece) ---
+
+        function handleMessage(message) {
+            if (message.type === 'STATE_UPDATE') {
+                gameState = message.data;
+                updateUI(gameState);
+            } else if (message.type === 'PRIVATE_MESSAGE') {
+                updatePrivateData(message.data);
+            } else if (message.type === 'ERROR') {
+                alert("Erro: " + message.message);
+                console.error("Erro do Servidor:", message.message);
+            } else if (message.type === 'GAME_OVER') {
+                 handleGameOver(message.results);
+            }
+        }
+        
+        let privateWord = null;
+        let privateRole = null;
+
+        function updatePrivateData(data) {
+            privateWord = data.word;
+            privateRole = data.role;
+            
+            // Atualiza o card de palavra/papel em todas as telas
+            const elements = [document.getElementById('player-role-word'), document.getElementById('player-role-word-game')];
+
+            elements.forEach(el => {
+                el.className = 'role-word'; // Reseta classes
+                el.innerHTML = `Você é o **${privateRole}** | Palavra: **${privateWord}**`;
+                
+                if (privateRole === 'IMPOSTOR') {
+                    el.classList.add('role-impostor');
+                } else {
+                    el.classList.add('role-innocent');
+                }
+            });
+            
+            // Se estiver no jogo, garante que o card é exibido
+            if (gameState.status && gameState.status !== 'WAITING_FOR_PLAYERS') {
+                document.getElementById('player-role-word-game').style.display = 'block';
+            }
+        }
+
+        // --- Lógica de Atualização da Interface ---
+
+        function updateUI(state) {
+            // Atualiza Lobby
+            if (state.status === 'WAITING_FOR_PLAYERS') {
+                showScreen('lobby-screen');
+                document.getElementById('lobby-title').innerText = `Lobby: Partida #${state.id}`;
+                document.getElementById('player-count').innerText = state.player_count;
+                document.getElementById('min-players').innerText = state.min_players;
+                
+                // Configurações
+                document.getElementById('conf-clue').innerText = state.config.clue_time;
+                document.getElementById('conf-vote').innerText = state.config.vote_time;
+                document.getElementById('conf-rounds').innerText = state.config.rounds_per_player;
+
+                // Lista de Jogadores
+                const list = document.getElementById('lobby-player-list');
+                list.innerHTML = state.players.map(p => 
+                    `<li>${p.name} ${p.id === state.host_id ? '<span class="host-tag">Host</span>' : ''}</li>`
+                ).join('');
+
+                // Botão de Iniciar (Apenas Host e min. jogadores atingido)
+                const startBtn = document.getElementById('start-game-btn');
+                if (isHost && state.player_count >= state.min_players) {
+                    startBtn.style.display = 'block';
+                    document.getElementById('lobby-message').innerText = "Pronto para iniciar!";
+                } else if (isHost) {
+                    startBtn.style.display = 'none';
+                    document.getElementById('lobby-message').innerText = `Aguardando ${state.min_players - state.player_count} jogadores para iniciar.`;
+                }
+            } 
+            
+            // Atualiza Jogo em Andamento
+            else if (state.status === 'IN_PROGRESS' || state.status === 'VOTING') {
+                showScreen('game-screen');
+                
+                // Pista/Papel deve ser exibido
+                document.getElementById('player-role-word-game').style.display = privateWord ? 'block' : 'none';
+
+                // Temporizador
+                document.getElementById('game-timer').innerText = formatTime(state.timer);
+                
+                // Pistas
+                document.getElementById('current-round').innerText = state.current_round;
+                document.getElementById('current-turn-player').innerText = state.current_turn || 'Calculando...';
+                
+                const cluesContainer = document.getElementById('clues-list-container');
+                cluesContainer.innerHTML = state.clues.map(c => 
+                    `<p><strong>${c.player_name}:</strong> ${c.clue}</p>`
+                ).join('');
+                
+                // --- Lógica de Fases ---
+                
+                // FASE: Pistas
+                if (state.status === 'IN_PROGRESS') {
+                    document.getElementById('game-status-message').innerText = "Fase de Pistas";
+                    document.getElementById('voting-area').style.display = 'none';
+
+                    // Sua vez?
+                    const isMyTurn = playerId === state.current_player_id;
+                    if (isMyTurn) {
+                        document.getElementById('clue-input-area').style.display = 'block';
+                        document.getElementById('clue-input').focus();
+                    } else {
+                        document.getElementById('clue-input-area').style.display = 'none';
+                    }
+                } 
+                
+                // FASE: Votação
+                else if (state.status === 'VOTING') {
+                    document.getElementById('game-status-message').innerText = "Fase de Votação e Discussão";
+                    document.getElementById('clue-input-area').style.display = 'none';
+                    document.getElementById('voting-area').style.display = 'block';
+                    document.getElementById('votes-remaining').innerText = `${state.votes_count} votos registrados de ${state.player_count}`;
+
+                    // Se ainda não votou, habilita a votação
+                    const playersVoted = Object.keys(state.votes || {});
+                    const hasVoted = playersVoted.includes(playerId);
+                    
+                    if (!hasVoted) {
+                        populateVoteSelect(state.players);
+                    } else {
+                        document.getElementById('voting-area').innerHTML = "<p style='text-align:center;'>✅ Seu voto foi registrado. Aguardando os demais.</p>";
+                    }
+                }
+            }
+            
+            // Atualiza Resultados (após o GAME_OVER)
+            else if (state.status === 'FINISHED') {
+                 handleGameOver(state.results);
+            }
+        }
+        
+        // --- Funções de Ação ---
+
+        function handleStartGame() {
+            if (ws && isHost) {
+                ws.send(JSON.stringify({ command: "START_GAME" }));
+            }
+        }
+
+        function submitClue() {
+            const clue = document.getElementById('clue-input').value.trim();
+            if (clue && ws) {
+                ws.send(JSON.stringify({ command: "SUBMIT_CLUE", payload: { clue: clue } }));
+                document.getElementById('clue-input').value = ''; // Limpa o campo
+                document.getElementById('clue-input-area').style.display = 'none'; // Desabilita o campo
+            } else {
+                alert("Digite uma pista válida.");
+            }
+        }
+
+        function populateVoteSelect(players) {
+            const select = document.getElementById('vote-select');
+            select.innerHTML = '<option value="">-- Selecione o Impostor --</option>';
+            players.forEach(player => {
+                if (player.id !== playerId) { // Não pode votar em si mesmo
+                    const option = document.createElement('option');
+                    option.value = player.id;
+                    option.innerText = player.name;
+                    select.appendChild(option);
+                }
+            });
+        }
+        
+        function submitVote() {
+            const votedId = document.getElementById('vote-select').value;
+            if (votedId && ws) {
+                ws.send(JSON.stringify({ command: "VOTE", payload: { voted_id: votedId } }));
+                document.getElementById('voting-area').innerHTML = "<p style='text-align:center;'>✅ Voto enviado! Aguardando resultado...</p>";
+            } else {
+                alert("Você deve selecionar um jogador para votar.");
+            }
+        }
+        
+        function handleGameOver(results) {
+            showScreen('results-screen');
+            
+            // Mensagem Principal
+            const messageEl = document.getElementById('final-result-message');
+            messageEl.innerText = results.message;
+            if (results.winner === 'IMPOSTOR') {
+                messageEl.style.color = var('--error-color');
+            } else {
+                 messageEl.style.color = var('--success-color');
+            }
+            
+            // Detalhes
+            document.getElementById('results-impostor-name').innerText = results.impostor_name;
+            document.getElementById('results-innocent-word').innerText = results.real_word;
+            document.getElementById('results-impostor-word').innerText = results.fake_word;
+            
+            // Votos
+            const tallyContainer = document.getElementById('vote-tally-container');
+            tallyContainer.innerHTML = '';
+            for (const [votedName, count] of Object.entries(results.votes_tally)) {
+                tallyContainer.innerHTML += `<p>${votedName}: <strong>${count} votos</strong></p>`;
+            }
+        }
+
+        function formatTime(totalSeconds) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        // --- Inicialização ---
+        document.addEventListener('DOMContentLoaded', () => {
+             // Tenta recuperar o nome do LocalStorage
+             const storedName = localStorage.getItem('playerName');
+             if (storedName) {
+                 document.getElementById('player-name').value = storedName;
+             }
+             
+             document.getElementById('player-name').addEventListener('change', (e) => {
+                 localStorage.setItem('playerName', e.target.value);
+             });
+             
+             // Por padrão, mostra a tela inicial
+             showScreen('home-screen');
+        });
+        
+    </script>
+</body>
+</html>
