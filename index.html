@@ -56,7 +56,12 @@
             font-size: 2.5em;
             text-shadow: 0 0 10px rgba(255, 111, 97, 0.5);
         }
-
+        
+        /* Ajuste do emoji para centralizar o texto */
+        h1::before {
+            content: "🕵️ ";
+        }
+        
         .input-group {
             margin-bottom: 25px;
         }
@@ -264,7 +269,7 @@
     <div class="container">
         
         <div id="home-screen" class="screen active">
-            <h1>🕵️ Impostor Online</h1>
+            <h1>Impostor Online</h1>
             <div id="name-input" class="input-group">
                 <label for="player-name">Como devemos te chamar?</label>
                 <input type="text" id="player-name" placeholder="Seu Nickname" value="JogadorAnônimo">
@@ -336,7 +341,7 @@
                 </ul>
             </div>
             
-            <button id="start-game-btn" class="btn-primary" style="display: none;">▶️ Iniciar Jogo</button>
+            <button id="start-game-btn" class="btn-primary" style="display: none;" onclick="handleStartGame()">▶️ Iniciar Jogo</button>
             <button class="btn-secondary" onclick="window.location.reload()">Sair do Lobby</button>
             <p id="lobby-message" style="margin-top: 10px; color: var(--warning-color);"></p>
         </div>
@@ -445,7 +450,8 @@
             }
 
             try {
-                const response = await fetch(`/api/create_game/${name}`, {
+                // A porta :8000 deve ser removida aqui, pois estamos em produção no Render
+                const response = await fetch(`${window.location.origin}/api/create_game/${name}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -560,7 +566,7 @@
 
             elements.forEach(el => {
                 el.className = 'role-word'; // Reseta classes
-                el.innerHTML = `Você é o **${privateRole}** | Palavra: **${privateWord}**`;
+                el.innerHTML = `Você é o <span>${privateRole}</span> | Palavra: <span>${privateWord}</span>`;
                 
                 if (privateRole === 'IMPOSTOR') {
                     el.classList.add('role-impostor');
@@ -717,9 +723,9 @@
             const messageEl = document.getElementById('final-result-message');
             messageEl.innerText = results.message;
             if (results.winner === 'IMPOSTOR') {
-                messageEl.style.color = var('--error-color');
+                messageEl.style.color = 'var(--error-color)';
             } else {
-                 messageEl.style.color = var('--success-color');
+                 messageEl.style.color = 'var(--success-color)';
             }
             
             // Detalhes
