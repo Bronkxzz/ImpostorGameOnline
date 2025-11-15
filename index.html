@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Impostor Game Online</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1 { color: #d32f2f; text-align: center; }
+        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-primary { background-color: #4CAF50; color: white; }
+        .btn-secondary { background-color: #f44336; color: white; }
+        .status-box { padding: 10px; border-radius: 5px; margin-top: 15px; }
+        .status-waiting { background-color: #fff3e0; border: 1px solid #ffb300; }
+        .status-in-progress { background-color: #e8f5e9; border: 1px solid #4CAF50; }
+        .status-voting { background-color: #e3f2fd; border: 1px solid #2196f3; }
+        .clues-list { list-style: none; padding: 0; }
+        .clues-list li { background: #eee; margin-bottom: 5px; padding: 8px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🕵️ Jogo do Impostor Online</h1>
+        
+        <div id="setup-section">
+            <h2>1. Crie ou Entre no Jogo</h2>
+            <input type="text" id="player-name" placeholder="Seu Nome" required style="padding: 10px; width: calc(100% - 22px); margin-bottom: 10px;">
+            
+            <button class="btn-primary" onclick="createGame()">Criar Novo Jogo</button>
+            
+            <hr>
+            
+            <input type="text" id="game-id-input" placeholder="ID do Jogo (Ex: 1a2b3c4d)" style="padding: 10px; width: calc(100% - 22px); margin-bottom: 10px;">
+            <button class="btn-secondary" onclick="joinGame()">Entrar em Jogo Existente</button>
+        </div>
+
+        <div id="game-panel" style="display: none;">
+            <p>ID da Partida: <strong id="current-game-id"></strong> | Jogador: <strong id="current-player-name"></strong> (<span id="current-player-role">?</span>)</p>
+
+            <div class="status-box status-waiting" id="game-status-display">
+                <p>Status: Aguardando jogadores...</p>
+            </div>
+
+            <div id="private-word-section" style="margin-top: 15px; padding: 15px; border: 1px dashed #333; display: none;">
+                <h3>Sua Palavra: <strong id="private-word">?</strong></h3>
+                <p>Seu Papel: <strong id="private-role">?</strong></p>
+            </div>
+
+            <div id="action-section" style="margin-top: 20px;">
+                <div id="host-controls" style="display: none; margin-bottom: 15px;">
+                    <button class="btn-primary" onclick="startGame()">🚀 Iniciar Partida (Mín. <span id="min-players">3</span>)</button>
+                </div>
+                
+                <div id="clue-input-section" style="display: none;">
+                    <h3>Sua Vez de Dar a Pista</h3>
+                    <input type="text" id="clue-input" placeholder="Digite uma palavra única" style="padding: 10px; width: calc(70%);">
+                    <button class="btn-primary" onclick="submitClue()">Enviar Pista</button>
+                    <p id="clue-error-message" style="color: red;"></p>
+                </div>
+
+                <div id="voting-section" style="display: none;">
+                    <h3>🗳️ Votação - Escolha o Impostor</h3>
+                    <select id="vote-target" style="padding: 10px; width: calc(70%);"></select>
+                    <button class="btn-secondary" onclick="submitVote()">Votar</button>
+                    <p id="vote-info"></p>
+                </div>
+            </div>
+
+            <hr>
+
+            <h2>👥 Jogadores (<span id="player-count">0</span>)</h2>
+            <ul id="players-list" class="clues-list"></ul>
+
+            <h2>📝 Pistas Anteriores</h2>
+            <ul id="clues-list" class="clues-list">
+                <li>Nenhuma pista dada ainda.</li>
+            </ul>
+
+            <div id="game-results" style="display: none; margin-top: 20px; padding: 20px; border-radius: 8px;">
+                <h2>🏁 Fim de Jogo!</h2>
+                <p id="result-message" style="font-size: 1.2em; font-weight: bold;"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SERVER_HOST = "localhost:8000"; // Mude para seu IP público/domínio quando for hospedar online
+        let ws;
+        let gameId = null;
+        let playerId = null;
+        let playerName = null;
+        let isHost = false;
+        let lastClueCount = 0;
+
+        // --- CONEXÃO GERAL ---
+
+        function createGame() {
+            playerName = document.getElementById('player-name').value.trim();
+            if (!playerName) {
+                alert("Por favor, digite seu nome.");
+                return;
+            }
+
+            // Requisição HTTP para criar a partida no servidor
+            fetch(`http://${SERVER_HOST}/api/create_game/${encodeURIComponent(playerName)}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.game_id) {
+                        gameId = data.game_id;
+                        playerId = data.host_id;
+                        isHost = true;
+                        document.getElementById('current-game-id').textContent = gameId;
+                        connectWebSocket();
+                    } else {
+                        alert("Erro ao criar o jogo: " + (data.message || "Desconhecido"));
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro na criação:', error);
+                    alert("Erro de conexão ao criar o jogo.");
+                });
+        }
+
+        function joinGame() {
+            playerName = document.getElementById('player-name').value.trim();
+            gameId = document.getElementById('game-id-input').value.trim();
+            if (!playerName || !gameId) {
+                alert("Por favor, digite seu nome e o ID do jogo.");
+                return;
+            }
+            playerId = 'p' + Math.random().toString(36).substr(2, 9); // Gera um ID temporário para jogadores que se juntam
+            document.getElementById('current-game-id').textContent = gameId;
+            connectWebSocket();
+        }
+
+        function connectWebSocket() {
+            const wsUrl = `ws://${SERVER_HOST}/ws/${gameId}/${playerId}/${encodeURIComponent(playerName)}`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log("Conectado ao WebSocket.");
+                document.getElementById('setup-section').style.display = 'none';
+                document.getElementById('game-panel').style.display = 'block';
+                document.getElementById('current-player-name').textContent = playerName;
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                handleMessage(message);
+            };
+
+            ws.onclose = () => {
+                console.log("Desconectado do WebSocket.");
+                alert("Conexão com o jogo perdida. Reinicie a página.");
+                document.getElementById('setup-section').style.display = 'block';
+                document.getElementById('game-panel').style.display = 'none';
+            };
+
+            ws.onerror = (error) => {
+                console.error("Erro no WebSocket:", error);
+            };
+        }
+
+        // --- MANIPULAÇÃO DE DADOS (RECEBIDOS DO SERVIDOR) ---
+
+        function handleMessage(message) {
+            console.log("Mensagem recebida:", message);
+
+            switch (message.type) {
+                case "STATE_UPDATE":
+                    updateGameState(message.data);
+                    break;
+                case "PRIVATE_MESSAGE":
+                    // Recebe a palavra/papel que só o jogador pode ver
+                    document.getElementById('private-word').textContent = message.data.word;
+                    document.getElementById('private-role').textContent = message.data.role;
+                    document.getElementById('private-word-section').style.display = 'block';
+                    break;
+                case "ERROR":
+                    alert("Erro do Servidor: " + message.message);
+                    break;
+                case "GAME_STARTED":
+                    alert("O jogo começou! Verifique sua palavra!");
+                    // O STATE_UPDATE logo em seguida cuidará de mudar as seções
+                    break;
+                case "CLUE_ACCEPTED":
+                    document.getElementById('clue-input-section').style.display = 'none';
+                    document.getElementById('clue-error-message').textContent = 'Pista enviada com sucesso! Aguarde o próximo turno.';
+                    break;
+                case "VOTE_ACCEPTED":
+                    document.getElementById('voting-section').style.display = 'none';
+                    document.getElementById('vote-info').textContent = 'Voto registrado. Aguarde os outros jogadores.';
+                    break;
+            }
+        }
+
+        function updateGameState(state) {
+            // Atualiza o display de Status
+            const statusBox = document.getElementById('game-status-display');
+            statusBox.className = `status-box status-${state.status.toLowerCase().replace(/_/g, '-')}`;
+            statusBox.innerHTML = `<h3>Status Atual: ${state.status.replace(/_/g, ' ')}</h3>`;
+            document.getElementById('min-players').textContent = state.min_players;
+            
+            // Lista de Jogadores
+            const playersList = document.getElementById('players-list');
+            playersList.innerHTML = state.players.map(p => `<li>👤 ${p}</li>`).join('');
+            document.getElementById('player-count').textContent = state.player_count;
+
+            // Pistas
+            const cluesList = document.getElementById('clues-list');
+            if (state.clues.length > lastClueCount) {
+                 cluesList.innerHTML = state.clues.map(c => `<li>📝 ${c}</li>`).join('');
+                 lastClueCount = state.clues.length;
+            }
+            if (state.clues.length === 0) {
+                 cluesList.innerHTML = '<li>Nenhuma pista dada ainda.</li>';
+            }
+            
+            // --- LÓGICA DE AÇÕES ---
+            
+            // Reseta todas as seções de ação
+            document.getElementById('host-controls').style.display = 'none';
+            document.getElementById('clue-input-section').style.display = 'none';
+            document.getElementById('voting-section').style.display = 'none';
+            document.getElementById('game-results').style.display = 'none';
+            
+            if (state.status === "WAITING_FOR_PLAYERS") {
+                if (isHost) {
+                    document.getElementById('host-controls').style.display = 'block';
+                }
+            } else if (state.status === "IN_PROGRESS") {
+                // Checa se é a vez do jogador
+                if (state.current_player_id === playerId) {
+                    document.getElementById('clue-input-section').style.display = 'block';
+                    document.getElementById('clue-error-message').textContent = '';
+                } else {
+                    statusBox.innerHTML += `<p>Aguardando pista de: <strong>${state.current_turn}</strong></p>`;
+                }
+            } else if (state.status === "VOTING") {
+                document.getElementById('vote-info').textContent = `${state.votes_count} de ${state.total_players_to_vote} votos registrados.`;
+                
+                // Preenche o Select com os jogadores para votar
+                const voteTarget = document.getElementById('vote-target');
+                voteTarget.innerHTML = '';
+                
+                // Filtra o próprio jogador (não pode votar em si)
+                const options = state.players
+                    .map(p => ({id: p, name: p})) 
+                    .filter(p => p.name !== playerName); 
+                
+                options.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.name; // Usando o nome como ID por simplificação no protótipo
+                    option.textContent = p.name;
+                    voteTarget.appendChild(option);
+                });
+
+                document.getElementById('voting-section').style.display = 'block';
+
+            } else if (state.status === "FINISHED") {
+                const results = state.results;
+                if (results) {
+                    document.getElementById('game-results').style.display = 'block';
+                    document.getElementById('game-results').className = `status-box ${results.winner === 'INOCENTES' ? 'status-in-progress' : 'status-voting'}`;
+                    document.getElementById('result-message').innerHTML = `
+                        ${results.message}<br>
+                        Palavra Real: <strong>${results.real_word}</strong><br>
+                        Palavra Falsa: <strong>${results.fake_word}</strong><br>
+                        Impostor: <strong>${results.impostor_name}</strong>
+                    `;
+                }
+            }
+        }
+        
+        // --- FUNÇÕES DE COMANDO (ENVIO PARA O SERVIDOR) ---
+        
+        function sendCommand(command, payload = {}) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = { command, payload };
+                ws.send(JSON.stringify(message));
+            } else {
+                alert("Não conectado ao servidor. Tente se reconectar.");
+            }
+        }
+
+        function startGame() {
+            sendCommand("START_GAME");
+        }
+
+        function submitClue() {
+            const clue = document.getElementById('clue-input').value.trim();
+            if (!clue || clue.split(' ').length > 1) {
+                document.getElementById('clue-error-message').textContent = 'A pista deve ser uma única palavra!';
+                return;
+            }
+            sendCommand("SUBMIT_CLUE", { clue });
+            document.getElementById('clue-input').value = ''; // Limpa o campo
+        }
+        
+        function submitVote() {
+            const voteTarget = document.getElementById('vote-target');
+            // O valor do option é o nome do jogador (o player_id no state é o nome)
+            const votedName = voteTarget.value; 
+
+            if (!votedName) {
+                alert("Selecione um jogador válido para votar.");
+                return;
+            }
+
+            // No backend (main_server.py), estamos usando o nome do jogador como ID para simplificação.
+            sendCommand("VOTE", { voted_id: votedName }); 
+        }
+
+        // --- CORREÇÃO PÓS-CONEXÃO ---
+        // Se o jogo já tiver um ID, tenta se conectar automaticamente ao carregar a página
+        if (localStorage.getItem('lastGameId')) {
+             document.getElementById('game-id-input').value = localStorage.getItem('lastGameId');
+        }
+
+    </script>
+</body>
+</html>
