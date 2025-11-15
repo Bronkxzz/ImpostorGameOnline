@@ -5,15 +5,12 @@ import time
 from collections import Counter
 from typing import List, Dict, Union, Optional, Any
 
+# IMPORTAÇÃO DA NOVA LISTA DE PALAVRAS
+from word_list import WORD_PAIRS 
+
 # --- CONSTANTES ---
 MIN_PLAYERS = 3
-DEFAULT_WORD_PAIRS = [
-    {"inocente": "Cachorro", "impostor": "Gato"},
-    {"inocente": "Banana", "impostor": "Maçã"},
-    {"inocente": "Internet", "impostor": "Intranet"},
-    {"inocente": "Pizza", "impostor": "Hambúrguer"},
-    {"inocente": "Café", "impostor": "Chá"},
-]
+# Removendo o DEFAULT_WORD_PAIRS pois usaremos o word_list.py
 
 # --- CLASSES AUXILIARES (MODELOS DE DADOS) ---
 class GameConfig:
@@ -39,23 +36,26 @@ class Player:
 # ----------------------------------------------------------------
 
 class Game:
-    def __init__(self, host_id: str, host_name: str, words: List[Dict], config: GameConfig):
+    def __init__(self, host_id: str, host_name: str, config: GameConfig):
         self.game_id = str(uuid.uuid4())[:8]  # ID único para o link do site
         self.players: Dict[str, Player] = {host_id: Player(host_id, host_name)} # {player_id: Player_object}
         self.host_id = host_id
-        self.words = words
+        # Não precisa mais passar a lista de palavras, ela é importada
         self.config = config
         
         self.status = "WAITING_FOR_PLAYERS" 
         self.impostor_id: Optional[str] = None
-        self.word_pair: Optional[Dict[str, str]] = None
+        
+        # NOVAS VARIÁVEIS PARA AS PALAVRAS
+        self.word_pair: Optional[Dict[str, str]] = None 
         
         self.current_round = 0
         self.current_turn_index = -1 # Índice do jogador atual na lista ordenada
-        self.players_turn_order: List[str] = [] # Ordem dos jogadores no turno
+        self.players_turn_order: List[str] = [] # Ordem dos jogadores no turno (AGORA RANDOMIZADA)
         self.clues: List[Dict[str, str]] = [] # [{player_name: "Pista"}]
         self.votes: Dict[str, str] = {}  # {voter_id: voted_id}
         
+        # VARIÁVEIS DO TIMER REFINADAS
         self.timer_start_time: Optional[float] = None
         self.timer_duration: int = 0
         self.timer_paused: bool = False
@@ -65,9 +65,10 @@ class Game:
     def get_public_state(self, requester_id: Optional[str] = None) -> Dict[str, Any]:
         """Retorna o estado do jogo para ser exibido na interface de todos."""
         
-        current_player_name = self.players[self.players_turn_order[self.current_turn_index]].name if self.status == 'IN_PROGRESS' and self.players_turn_order and self.current_turn_index >= 0 else None
-        current_player_id = self.players_turn_order[self.current_turn_index] if self.status == 'IN_PROGRESS' and self.players_turn_order and self.current_turn_index >= 0 else None
+        current_player_name = self.players[self.players_turn_order[self.current_turn_index]].name if self.status in ['IN_PROGRESS', 'VOTING'] and self.players_turn_order and self.current_turn_index >= 0 else None
+        current_player_id = self.players_turn_order[self.current_turn_index] if self.status in ['IN_PROGRESS', 'VOTING'] and self.players_turn_order and self.current_turn_index >= 0 else None
         
+        # Cálculo do tempo restante em tempo real para o Frontend animar
         remaining_time = 0
         if self.timer_start_time and not self.timer_paused:
             elapsed = time.time() - self.timer_start_time
@@ -87,13 +88,15 @@ class Game:
             "clues": self.clues,
             "current_round": self.current_round,
             "current_turn": current_player_name,
-            "current_player_id": current_player_id, # Usado pelo frontend para saber de quem é a vez
-            "timer": remaining_time,
+            "current_player_id": current_player_id, 
+            "timer": remaining_time, # CHAVE PARA O TIMER ANIMADO!
             "total_players_to_vote": len(self.players) if self.status == 'VOTING' else 0,
             "votes_count": len(self.votes),
             "results": self.results if self.status == 'FINISHED' else {},
         }
     
+    # ... (get_private_player_data, add_player, remove_player)
+
     def get_private_player_data(self, player_id: str) -> Optional[Dict[str, Any]]:
         """Retorna dados privados (palavra, papel) para um jogador específico."""
         player = self.players.get(player_id)
@@ -111,17 +114,17 @@ class Game:
         if player_id not in self.players:
             return False
         
-        # Não permite sair durante o jogo a menos que seja o Host (para encerrar)
         if self.status != "WAITING_FOR_PLAYERS" and player_id != self.host_id:
             return False
         
         del self.players[player_id]
         
-        # Se o host sair, o jogo deve ser encerrado pelo GameManager
         if player_id == self.host_id:
-            return True # Sinaliza que o GameManager deve remover o jogo
+            return True 
         
         return True
+    
+    # --- FUNÇÃO START GAME MELHORADA ---
 
     def start_game(self) -> Dict[str, Any]:
         """Inicia a partida, distribuindo as palavras e o impostor."""
@@ -131,16 +134,19 @@ class Game:
             return {"error": "O jogo já começou ou está em outro estado."}
 
         self.status = "IN_PROGRESS"
-        self.word_pair = random.choice(self.words)
         
-        # Define a ordem dos turnos
+        # 1. Randomiza o par de palavras
+        innocent_word, impostor_word = random.choice(WORD_PAIRS)
+        self.word_pair = {'inocente': innocent_word, 'impostor': impostor_word}
+        
+        # 2. Define a ordem dos turnos (randomizada)
         self.players_turn_order = list(self.players.keys())
-        random.shuffle(self.players_turn_order)
+        random.shuffle(self.players_turn_order) # RANDONOMIZA QUEM COMEÇA!
 
-        # Escolhe o impostor
+        # 3. Escolhe o impostor
         self.impostor_id = random.choice(self.players_turn_order)
 
-        # Distribui palavras e papéis
+        # 4. Distribui palavras e papéis
         private_words_data = {}
         for p_id in self.players_turn_order:
             player = self.players[p_id]
@@ -173,10 +179,11 @@ class Game:
                 self.status = "VOTING"
                 self.timer_duration = self.config.vote_time
                 self.timer_start_time = time.time()
+                # Não retorna, continua para que o GameManager saiba o estado do timer
                 return
 
         # Inicia o temporizador para o jogador atual dar a pista
-        self.status = "IN_PROGRESS" # Garante o status se veio da votação ou aguarda
+        self.status = "IN_PROGRESS" 
         self.timer_duration = self.config.clue_time
         self.timer_start_time = time.time()
         
@@ -184,8 +191,10 @@ class Game:
         current_player_id = self.players_turn_order[self.current_turn_index]
         self.players[current_player_id].has_given_clue = False
 
+    # ... (submit_clue, submit_vote, process_votes)
+
     def submit_clue(self, player_id: str, clue: str) -> Dict[str, Any]:
-        """Processa a pista de um jogador."""
+        # ... (Mantido o mesmo)
         if self.status != "IN_PROGRESS":
             return {"error": "Não é fase de dar pistas."}
         
@@ -198,7 +207,6 @@ class Game:
         if player.has_given_clue:
             return {"error": "Você já deu sua pista nesta rodada."}
 
-        # Validação de pista (uma palavra e não a palavra real/falsa)
         clue_upper = clue.upper().strip()
         if not clue_upper or len(clue_upper.split()) > 1:
             return {"error": "A pista deve ser uma palavra única."}
@@ -208,13 +216,12 @@ class Game:
         self.clues.append({"player_name": player.name, "clue": clue_upper})
         player.has_given_clue = True
         
-        # Avança para o próximo turno após a pista
-        self._start_next_player_turn()
+        self._start_next_player_turn() 
         
         return {"success": True}
 
     def submit_vote(self, voter_id: str, voted_id: str) -> Dict[str, Any]:
-        """Registra um voto."""
+        # ... (Mantido o mesmo)
         if self.status != "VOTING":
             return {"error": "A votação não está em andamento."}
         if voter_id not in self.players or voted_id not in self.players:
@@ -230,41 +237,37 @@ class Game:
         player.has_voted = True
 
         if len(self.votes) == len(self.players):
-            # Votação finalizada
             return self.process_votes()
 
         return {"success": True, "votos_restantes": len(self.players) - len(self.votes)}
 
     def process_votes(self) -> Dict[str, Any]:
-        """Calcula o resultado final da votação."""
+        # ... (Mantido o mesmo, mas o word_pair agora é garantido)
         self.status = "FINISHED"
-        self.timer_paused = True # Pausa o temporizador
+        self.timer_paused = True 
 
-        # Se houver jogadores que não votaram (tempo esgotado)
         for p_id in self.players.keys():
             if p_id not in self.votes:
-                self.votes[p_id] = "ABSTENÇÃO" # Marca como abstenção para contabilizar
+                self.votes[p_id] = "ABSTENÇÃO" 
         
         vote_counts = Counter(self.votes.values())
         
-        winner = "IMPOSTOR" # Padrão, em caso de empate ou não votação clara
+        winner = "IMPOSTOR" 
         result_message = ""
         
         if not vote_counts or (len(vote_counts) == 1 and "ABSTENÇÃO" in vote_counts):
             result_message = f"Ninguém votou ou todos se abstiveram! O Impostor ({self.players[self.impostor_id].name}) escapou."
             winner = "IMPOSTOR"
         else:
-            # Encontra o jogador mais votado (excluindo abstenções se houver outros votos)
             most_voted_tally = [item for item in vote_counts.most_common() if item[0] != "ABSTENÇÃO"]
             
-            if not most_voted_tally: # Apenas abstenções
+            if not most_voted_tally: 
                  result_message = f"Ninguém votou! O Impostor ({self.players[self.impostor_id].name}) escapou."
                  winner = "IMPOSTOR"
             else:
                 most_voted_id, count = most_voted_tally[0]
                 most_voted_name = self.players[most_voted_id].name
                 
-                # Checa se há empate para o mais votado
                 tied_votes = [item for item in most_voted_tally if item[1] == count]
 
                 if len(tied_votes) > 1:
@@ -287,24 +290,35 @@ class Game:
         }
         
         return {"status": "GAME_OVER", "results": self.results}
-    
+
+    # --- FUNÇÃO CHECK TIMER AGORA CHAMA O BROADCAST! ---
     def check_timer(self) -> Optional[Dict[str, Any]]:
-        """Verifica o temporizador e avança o jogo se esgotado."""
+        """Verifica o temporizador, avança o jogo se esgotado e retorna o estado para broadcast."""
+        
+        # O Timer sempre deve ser calculado para que o Frontend possa animar.
+        remaining_time = 0
         if self.timer_start_time and not self.timer_paused:
             elapsed = time.time() - self.timer_start_time
-            if elapsed >= self.timer_duration:
-                # Timer esgotado!
-                if self.status == "IN_PROGRESS":
-                    # O jogador atual não deu a pista a tempo. Pula.
-                    player_id = self.players_turn_order[self.current_turn_index]
-                    if not self.players[player_id].has_given_clue:
-                        self.clues.append({"player_name": self.players[player_id].name, "clue": "(Pista Perdida - Tempo Esgotado)"})
-                        self.players[player_id].has_given_clue = True
-                    self._start_next_player_turn()
-                    return {"event": "TURN_SKIPPED"}
-                elif self.status == "VOTING":
-                    # Tempo de votação esgotado. Processa os votos atuais.
-                    return self.process_votes()
+            remaining_time = max(0, self.timer_duration - int(elapsed))
+            
+            # Se o tempo ainda não esgotou, apenas retorna o tempo restante
+            if remaining_time > 0:
+                return {"event": "TIMER_TICK", "time": remaining_time}
+
+
+        # Se o tempo esgotou (remaining_time == 0)
+        if self.timer_start_time and remaining_time == 0:
+            if self.status == "IN_PROGRESS":
+                player_id = self.players_turn_order[self.current_turn_index]
+                if not self.players[player_id].has_given_clue:
+                    self.clues.append({"player_name": self.players[player_id].name, "clue": "(Pista Perdida - Tempo Esgotado)"})
+                    self.players[player_id].has_given_clue = True
+                self._start_next_player_turn()
+                return {"event": "TURN_SKIPPED"}
+            
+            elif self.status == "VOTING":
+                return self.process_votes()
+
         return None
 
 
@@ -313,26 +327,12 @@ class Game:
 # ----------------------------------------------------------------
 
 class GameManager:
-    def __init__(self, word_path: str = 'palavras.json'):
+    def __init__(self): # Não precisa mais do word_path, pois usamos a lista importada
         self.active_games: Dict[str, Game] = {}
-        self.load_words(word_path)
-
-    def load_words(self, path: str):
-        """Carrega as palavras do arquivo JSON (reutilizando a lógica do bot)."""
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                self.word_pairs = json.load(f)
-            print(f"✅ {len(self.word_pairs)} pares de palavras carregados de {path}.")
-        except FileNotFoundError:
-            self.word_pairs = DEFAULT_WORD_PAIRS
-            print(f"⚠️ Arquivo 'palavras.json' não encontrado. Usando palavras padrão.")
-        except json.JSONDecodeError:
-             self.word_pairs = DEFAULT_WORD_PAIRS
-             print("❌ Erro ao ler palavras.json! Arquivo corrompido. Usando palavras padrão.")
 
     def create_game(self, host_id: str, host_name: str, config: GameConfig) -> Game:
         """Cria um novo objeto Game e o adiciona aos jogos ativos."""
-        new_game = Game(host_id, host_name, self.word_pairs, config)
+        new_game = Game(host_id, host_name, config) # Removido self.word_pairs
         self.active_games[new_game.game_id] = new_game
         return new_game
 

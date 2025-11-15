@@ -57,7 +57,6 @@
             text-shadow: 0 0 10px rgba(255, 111, 97, 0.5);
         }
         
-        /* Ajuste do emoji para centralizar o texto */
         h1::before {
             content: "🕵️ ";
         }
@@ -183,30 +182,36 @@
             border-radius: 10px;
             font-size: 1.2em;
             font-weight: 700;
-            animation: pulse 1s infinite alternate;
         }
         
         .role-impostor {
-            background-color: var(--error-color);
-            color: white;
+            background-color: #3d0500; /* Fundo mais escuro para Impostor */
+            border: 2px solid var(--error-color);
         }
         
         .role-innocent {
-            background-color: var(--success-color);
-            color: white;
+            background-color: #003d00; /* Fundo mais escuro para Inocente */
+            border: 2px solid var(--success-color);
         }
 
-        @keyframes pulse {
-            from { box-shadow: 0 0 5px var(--primary-color); }
-            to { box-shadow: 0 0 20px var(--primary-color); }
+        /* Efeito de revelação (similar ao Among Us) */
+        @keyframes reveal {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
         }
 
+        .role-word.animate {
+            animation: reveal 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+        }
+        
         .timer {
             font-size: 3em;
             font-weight: 700;
             color: var(--secondary-color);
             text-align: center;
             margin-bottom: 15px;
+            transition: color 0.5s; /* Para a transição de cor de fase */
         }
         
         .status-message {
@@ -434,7 +439,7 @@
         // --- Gerenciamento de Partida ---
 
         function generateUniqueId() {
-            // Gera um ID único simples, usando o timestamp para garantir que seja diferente
+            // Gera um ID único simples
             return Math.random().toString(36).substring(2, 10); 
         }
 
@@ -450,7 +455,7 @@
             }
 
             try {
-                // A porta :8000 deve ser removida aqui, pois estamos em produção no Render
+                // Usando window.location.origin para garantir que funcione tanto localmente quanto no Render
                 const response = await fetch(`${window.location.origin}/api/create_game/${name}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -489,7 +494,6 @@
                 return;
             }
             
-            // Gera um ID de jogador único (diferente do host)
             playerId = generateUniqueId(); 
             gameId = id;
             isHost = false;
@@ -502,7 +506,7 @@
         // --- Conexão WebSocket ---
 
         function connectWebSocket() {
-            // A URL do servidor no Render é a mesma URL que carregou o HTML
+            // Usa wss no Render e ws localmente
             const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
             const url = `${protocol}://${window.location.host}/ws/${gameId}/${playerId}/${playerName}`;
             
@@ -510,7 +514,7 @@
 
             ws.onopen = () => {
                 console.log("Conexão WebSocket aberta.");
-                // Solicita os dados privados em caso de reconexão
+                // Solicita os dados privados se já estiver no jogo
                 if (gameState.status && gameState.status !== 'WAITING_FOR_PLAYERS') {
                     ws.send(JSON.stringify({ command: "GET_PRIVATE_DATA" }));
                 }
@@ -566,16 +570,24 @@
 
             elements.forEach(el => {
                 el.className = 'role-word'; // Reseta classes
-                el.innerHTML = `Você é o <span>${privateRole}</span> | Palavra: <span>${privateWord}</span>`;
                 
+                // 1. Define o conteúdo com destaque na palavra
                 if (privateRole === 'IMPOSTOR') {
+                    el.innerHTML = `Você é o <span style="font-size: 1.5em; color: var(--error-color);">IMPOSTOR</span><br>Palavra Secreta: <span style="font-size: 1.5em;">${privateWord}</span>`;
                     el.classList.add('role-impostor');
                 } else {
+                    el.innerHTML = `Você é <span style="font-size: 1.5em; color: var(--success-color);">INOCENTE</span><br>Palavra Secreta: <span style="font-size: 1.5em;">${privateWord}</span>`;
                     el.classList.add('role-innocent');
                 }
+                
+                // 2. Adiciona a classe de animação e a remove para permitir que ocorra novamente
+                el.classList.remove('animate');
+                // Força um reflow (recalculo de estilo) para reiniciar a animação
+                void el.offsetWidth; 
+                el.classList.add('animate');
             });
             
-            // Se estiver no jogo, garante que o card é exibido
+            // Garante que o card é exibido no jogo
             if (gameState.status && gameState.status !== 'WAITING_FOR_PLAYERS') {
                 document.getElementById('player-role-word-game').style.display = 'block';
             }
@@ -620,9 +632,17 @@
                 // Pista/Papel deve ser exibido
                 document.getElementById('player-role-word-game').style.display = privateWord ? 'block' : 'none';
 
-                // Temporizador
+                // Temporizador: Roda o tempo recebido do servidor a cada segundo
                 document.getElementById('game-timer').innerText = formatTime(state.timer);
                 
+                // Define a cor do timer baseada na fase
+                const timerEl = document.getElementById('game-timer');
+                if (state.status === 'IN_PROGRESS') {
+                     timerEl.style.color = 'var(--secondary-color)'; // Coral para Pista
+                } else if (state.status === 'VOTING') {
+                     timerEl.style.color = 'var(--primary-color)'; // Roxo para Votação
+                }
+
                 // Pistas
                 document.getElementById('current-round').innerText = state.current_round;
                 document.getElementById('current-turn-player').innerText = state.current_turn || 'Calculando...';
@@ -636,7 +656,7 @@
                 
                 // FASE: Pistas
                 if (state.status === 'IN_PROGRESS') {
-                    document.getElementById('game-status-message').innerText = "Fase de Pistas";
+                    document.getElementById('game-status-message').innerText = `Fase de Pistas (Rodada ${state.current_round})`;
                     document.getElementById('voting-area').style.display = 'none';
 
                     // Sua vez?
@@ -654,16 +674,38 @@
                     document.getElementById('game-status-message').innerText = "Fase de Votação e Discussão";
                     document.getElementById('clue-input-area').style.display = 'none';
                     document.getElementById('voting-area').style.display = 'block';
-                    document.getElementById('votes-remaining').innerText = `${state.votes_count} votos registrados de ${state.player_count}`;
+                    
+                    const playersVoted = state.votes_count;
+                    const totalPlayers = state.player_count;
+                    document.getElementById('votes-remaining').innerText = `${playersVoted} votos registrados de ${totalPlayers}`;
 
                     // Se ainda não votou, habilita a votação
-                    const playersVoted = Object.keys(state.votes || {});
-                    const hasVoted = playersVoted.includes(playerId);
+                    const hasVoted = Object.keys(state.votes || {}).includes(playerId);
+                    
+                    const votingArea = document.getElementById('voting-area');
                     
                     if (!hasVoted) {
                         populateVoteSelect(state.players);
+                        votingArea.querySelector('select').style.display = 'block';
+                        votingArea.querySelector('button').style.display = 'block';
+                        votingArea.querySelector('p').style.display = 'block';
+                        
+                        if (votingArea.querySelector('#voted-message')) {
+                             votingArea.querySelector('#voted-message').remove();
+                        }
+
                     } else {
-                        document.getElementById('voting-area').innerHTML = "<p style='text-align:center;'>✅ Seu voto foi registrado. Aguardando os demais.</p>";
+                        // Esconde o formulário de voto se já votou
+                        votingArea.querySelector('select').style.display = 'none';
+                        votingArea.querySelector('button').style.display = 'none';
+                        
+                        if (!votingArea.querySelector('#voted-message')) {
+                             const message = document.createElement('p');
+                             message.id = 'voted-message';
+                             message.style.textAlign = 'center';
+                             message.innerHTML = "✅ **Seu voto foi registrado**. Aguardando os demais.";
+                             votingArea.appendChild(message);
+                        }
                     }
                 }
             }
@@ -685,6 +727,7 @@
         function submitClue() {
             const clue = document.getElementById('clue-input').value.trim();
             if (clue && ws) {
+                // A pista é enviada, o backend avança para o próximo turno
                 ws.send(JSON.stringify({ command: "SUBMIT_CLUE", payload: { clue: clue } }));
                 document.getElementById('clue-input').value = ''; // Limpa o campo
                 document.getElementById('clue-input-area').style.display = 'none'; // Desabilita o campo
@@ -710,7 +753,6 @@
             const votedId = document.getElementById('vote-select').value;
             if (votedId && ws) {
                 ws.send(JSON.stringify({ command: "VOTE", payload: { voted_id: votedId } }));
-                document.getElementById('voting-area').innerHTML = "<p style='text-align:center;'>✅ Voto enviado! Aguardando resultado...</p>";
             } else {
                 alert("Você deve selecionar um jogador para votar.");
             }
