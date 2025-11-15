@@ -175,43 +175,33 @@
             font-weight: 700;
         }
         
+        /* O role-word agora é um card de status, não o principal de revelação */
         .role-word {
             text-align: center;
-            margin: 30px 0;
-            padding: 20px;
+            margin: 15px 0;
+            padding: 15px;
             border-radius: 10px;
-            font-size: 1.2em;
+            font-size: 1em;
             font-weight: 700;
         }
         
         .role-impostor {
-            background-color: #3d0500; /* Fundo mais escuro para Impostor */
+            background-color: #3d0500;
             border: 2px solid var(--error-color);
         }
         
         .role-innocent {
-            background-color: #003d00; /* Fundo mais escuro para Inocente */
+            background-color: #003d00;
             border: 2px solid var(--success-color);
         }
 
-        /* Efeito de revelação (similar ao Among Us) */
-        @keyframes reveal {
-            0% { transform: scale(0.8); opacity: 0; }
-            50% { transform: scale(1.1); opacity: 1; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-
-        .role-word.animate {
-            animation: reveal 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
-        }
-        
         .timer {
             font-size: 3em;
             font-weight: 700;
             color: var(--secondary-color);
             text-align: center;
             margin-bottom: 15px;
-            transition: color 0.5s; /* Para a transição de cor de fase */
+            transition: color 0.5s;
         }
         
         .status-message {
@@ -244,6 +234,68 @@
         
         .clue-list strong {
             color: var(--primary-color);
+        }
+
+        /* --- OVERLAY DE REVELAÇÃO (NOVO) --- */
+        #reveal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
+            z-index: 1000; /* Garante que fique acima de tudo */
+            display: none; /* Escondido por padrão */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        #reveal-overlay.active {
+            display: flex;
+        }
+
+        #reveal-content {
+            transform: scale(0.8);
+            opacity: 0;
+            transition: all 0.5s ease-out;
+        }
+
+        .role-text {
+            font-size: 5em;
+            font-weight: 900;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+
+        .word-text {
+            font-size: 3em;
+            font-weight: 700;
+            color: var(--text-light);
+            padding: 10px 20px;
+            border-radius: 10px;
+        }
+
+        .role-impostor .role-text {
+            color: var(--error-color);
+            text-shadow: 0 0 20px var(--error-color);
+        }
+
+        .role-innocent .role-text {
+            color: var(--success-color);
+            text-shadow: 0 0 20px var(--success-color);
+        }
+
+        .role-impostor .word-text {
+             background: #3d0500;
+        }
+
+        .role-innocent .word-text {
+             background: #003d00;
         }
 
         /* --- Resultado --- */
@@ -332,7 +384,7 @@
 
         <div id="lobby-screen" class="screen">
             <h1 id="lobby-title">Lobby: Partida #ID</h1>
-            <div id="player-role-word" class="role-word"></div>
+            <div id="player-role-word" class="role-word" style="display:none;"></div>
             
             <div class="game-info-card">
                 <h2>👥 Jogadores (<span id="player-count">0</span>/<span id="min-players">0</span>)</h2>
@@ -354,7 +406,7 @@
         <div id="game-screen" class="screen">
             <div class="timer" id="game-timer">--:--</div>
             <p class="status-message" id="game-status-message"></p>
-            <div id="player-role-word-game" class="role-word"></div>
+            <div id="player-role-word-game" class="role-word" style="display:none;"></div>
 
             <div class="game-info-card">
                 <h2>Rodada <span id="current-round">1</span> - Pistas</h2>
@@ -399,7 +451,14 @@
         </div>
 
     </div>
-
+    
+    <div id="reveal-overlay">
+        <div id="reveal-content">
+            <div class="role-text" id="reveal-role"></div>
+            <div class="word-text" id="reveal-word"></div>
+            <p style="font-size: 1.2em; margin-top: 50px;">Clique para continuar...</p>
+        </div>
+    </div>
     <script>
         // --- Variáveis Globais ---
         let ws = null;
@@ -408,6 +467,9 @@
         let playerName = "";
         let isHost = false;
         let gameState = {};
+        let privateRole = null;
+        let privateWord = null;
+        let hasPlayedRevealAnimation = false; // Novo flag para garantir que a animação só rode uma vez
         
         const screens = {
             'home-screen': document.getElementById('home-screen'),
@@ -417,6 +479,10 @@
             'game-screen': document.getElementById('game-screen'),
             'results-screen': document.getElementById('results-screen'),
         };
+        
+        const revealOverlay = document.getElementById('reveal-overlay');
+        const revealContent = document.getElementById('reveal-content');
+
 
         // --- Funções de Navegação ---
 
@@ -435,14 +501,7 @@
             }
             playerName = name;
         }
-
-        // --- Gerenciamento de Partida ---
-
-        function generateUniqueId() {
-            // Gera um ID único simples
-            return Math.random().toString(36).substring(2, 10); 
-        }
-
+        // ... (handleCreateGame, handleJoinGame, connectWebSocket) ...
         async function handleCreateGame() {
             const name = document.getElementById('create-game-name').value;
             const clueTime = parseInt(document.getElementById('clue-time').value);
@@ -455,7 +514,6 @@
             }
 
             try {
-                // Usando window.location.origin para garantir que funcione tanto localmente quanto no Render
                 const response = await fetch(`${window.location.origin}/api/create_game/${name}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -494,7 +552,7 @@
                 return;
             }
             
-            playerId = generateUniqueId(); 
+            playerId = Math.random().toString(36).substring(2, 10); 
             gameId = id;
             isHost = false;
 
@@ -502,11 +560,7 @@
             showScreen('lobby-screen');
         }
 
-
-        // --- Conexão WebSocket ---
-
         function connectWebSocket() {
-            // Usa wss no Render e ws localmente
             const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
             const url = `${protocol}://${window.location.host}/ws/${gameId}/${playerId}/${playerName}`;
             
@@ -514,7 +568,6 @@
 
             ws.onopen = () => {
                 console.log("Conexão WebSocket aberta.");
-                // Solicita os dados privados se já estiver no jogo
                 if (gameState.status && gameState.status !== 'WAITING_FOR_PLAYERS') {
                     ws.send(JSON.stringify({ command: "GET_PRIVATE_DATA" }));
                 }
@@ -527,7 +580,7 @@
 
             ws.onclose = (event) => {
                 console.log("Conexão WebSocket fechada:", event.reason);
-                if (event.code === 1011) { // Jogo encerrado pelo host
+                if (event.code === 1011) {
                     alert("O Host encerrou a partida.");
                     window.location.reload();
                 } else if (!screens['results-screen'].classList.contains('active')) {
@@ -542,14 +595,25 @@
             };
         }
         
-        // --- Manipulação de Mensagens (Onde a mágica acontece) ---
-
+        // --- NOVO: Manipulação de Mensagens ---
+        // Este é o ponto chave: aciona a animação de revelação.
         function handleMessage(message) {
             if (message.type === 'STATE_UPDATE') {
+                const oldStatus = gameState.status;
                 gameState = message.data;
                 updateUI(gameState);
+                
+                // NOVO: Detecta a transição de WAITING_FOR_PLAYERS para IN_PROGRESS
+                if (oldStatus === 'WAITING_FOR_PLAYERS' && gameState.status === 'IN_PROGRESS' && !hasPlayedRevealAnimation) {
+                     // Assim que o jogo começa, pede os dados privados para disparar a animação
+                     ws.send(JSON.stringify({ command: "GET_PRIVATE_DATA" }));
+                     hasPlayedRevealAnimation = true;
+                }
             } else if (message.type === 'PRIVATE_MESSAGE') {
                 updatePrivateData(message.data);
+                if (!screens['game-screen'].classList.contains('active')) {
+                     startRevealAnimation(message.data);
+                }
             } else if (message.type === 'ERROR') {
                 alert("Erro: " + message.message);
                 console.error("Erro do Servidor:", message.message);
@@ -558,42 +622,73 @@
             }
         }
         
-        let privateWord = null;
-        let privateRole = null;
+        // --- NOVO: Função que executa a animação de tela cheia ---
+        function startRevealAnimation(data) {
+            const role = data.role;
+            const word = data.word;
+
+            // 1. Configura o conteúdo da revelação
+            revealContent.classList.remove('role-impostor', 'role-innocent');
+            revealContent.classList.add(role === 'IMPOSTOR' ? 'role-impostor' : 'role-innocent');
+            
+            document.getElementById('reveal-role').innerText = role;
+            document.getElementById('reveal-word').innerText = word;
+
+            // 2. Torna o overlay visível (tela preta)
+            revealOverlay.classList.add('active');
+            // Força o overlay a aparecer antes de iniciar a transição de opacidade
+            void revealOverlay.offsetWidth; 
+            revealOverlay.style.opacity = 1;
+            
+            // 3. Aguarda um pouco e revela o conteúdo
+            setTimeout(() => {
+                revealContent.style.transform = 'scale(1)';
+                revealContent.style.opacity = 1;
+            }, 500); 
+
+            // 4. Configura o clique para fechar e ir para o jogo
+            const closeReveal = () => {
+                revealOverlay.style.opacity = 0;
+                
+                // Aguarda o fade out e remove o overlay
+                setTimeout(() => {
+                    revealOverlay.classList.remove('active');
+                }, 500); 
+
+                // Remove o listener para não vazar memória
+                revealOverlay.removeEventListener('click', closeReveal);
+            };
+
+            revealOverlay.addEventListener('click', closeReveal);
+        }
+
+
+        // --- NOVO: Atualiza Dados Privados (apenas o card fixo, a animação vai no overlay) ---
 
         function updatePrivateData(data) {
             privateWord = data.word;
             privateRole = data.role;
             
-            // Atualiza o card de palavra/papel em todas as telas
-            const elements = [document.getElementById('player-role-word'), document.getElementById('player-role-word-game')];
-
-            elements.forEach(el => {
-                el.className = 'role-word'; // Reseta classes
-                
-                // 1. Define o conteúdo com destaque na palavra
-                if (privateRole === 'IMPOSTOR') {
-                    el.innerHTML = `Você é o <span style="font-size: 1.5em; color: var(--error-color);">IMPOSTOR</span><br>Palavra Secreta: <span style="font-size: 1.5em;">${privateWord}</span>`;
-                    el.classList.add('role-impostor');
-                } else {
-                    el.innerHTML = `Você é <span style="font-size: 1.5em; color: var(--success-color);">INOCENTE</span><br>Palavra Secreta: <span style="font-size: 1.5em;">${privateWord}</span>`;
-                    el.classList.add('role-innocent');
-                }
-                
-                // 2. Adiciona a classe de animação e a remove para permitir que ocorra novamente
-                el.classList.remove('animate');
-                // Força um reflow (recalculo de estilo) para reiniciar a animação
-                void el.offsetWidth; 
-                el.classList.add('animate');
-            });
+            // Atualiza o card de status dentro da tela de jogo (menos chamativo)
+            const el = document.getElementById('player-role-word-game');
             
-            // Garante que o card é exibido no jogo
+            el.className = 'role-word'; // Reseta classes
+            el.innerHTML = `Você é <span>${privateRole}</span> | Palavra: <span>${privateWord}</span>`;
+            
+            if (privateRole === 'IMPOSTOR') {
+                el.classList.add('role-impostor');
+            } else {
+                el.classList.add('role-innocent');
+            }
+            
+            // Garante que o card é exibido no jogo (após o overlay fechar)
             if (gameState.status && gameState.status !== 'WAITING_FOR_PLAYERS') {
-                document.getElementById('player-role-word-game').style.display = 'block';
+                el.style.display = 'block';
             }
         }
 
-        // --- Lógica de Atualização da Interface ---
+
+        // --- Lógica de Atualização da Interface (mantida) ---
 
         function updateUI(state) {
             // Atualiza Lobby
@@ -627,7 +722,10 @@
             
             // Atualiza Jogo em Andamento
             else if (state.status === 'IN_PROGRESS' || state.status === 'VOTING') {
-                showScreen('game-screen');
+                // Só mostra a tela do jogo se a animação não estiver rodando
+                if (!revealOverlay.classList.contains('active')) {
+                    showScreen('game-screen');
+                }
                 
                 // Pista/Papel deve ser exibido
                 document.getElementById('player-role-word-game').style.display = privateWord ? 'block' : 'none';
@@ -638,9 +736,9 @@
                 // Define a cor do timer baseada na fase
                 const timerEl = document.getElementById('game-timer');
                 if (state.status === 'IN_PROGRESS') {
-                     timerEl.style.color = 'var(--secondary-color)'; // Coral para Pista
+                     timerEl.style.color = 'var(--secondary-color)'; 
                 } else if (state.status === 'VOTING') {
-                     timerEl.style.color = 'var(--primary-color)'; // Roxo para Votação
+                     timerEl.style.color = 'var(--primary-color)'; 
                 }
 
                 // Pistas
@@ -679,7 +777,6 @@
                     const totalPlayers = state.player_count;
                     document.getElementById('votes-remaining').innerText = `${playersVoted} votos registrados de ${totalPlayers}`;
 
-                    // Se ainda não votou, habilita a votação
                     const hasVoted = Object.keys(state.votes || {}).includes(playerId);
                     
                     const votingArea = document.getElementById('voting-area');
@@ -688,14 +785,12 @@
                         populateVoteSelect(state.players);
                         votingArea.querySelector('select').style.display = 'block';
                         votingArea.querySelector('button').style.display = 'block';
-                        votingArea.querySelector('p').style.display = 'block';
                         
                         if (votingArea.querySelector('#voted-message')) {
                              votingArea.querySelector('#voted-message').remove();
                         }
 
                     } else {
-                        // Esconde o formulário de voto se já votou
                         votingArea.querySelector('select').style.display = 'none';
                         votingArea.querySelector('button').style.display = 'none';
                         
@@ -716,7 +811,7 @@
             }
         }
         
-        // --- Funções de Ação ---
+        // --- Funções de Ação (mantidas) ---
 
         function handleStartGame() {
             if (ws && isHost) {
@@ -727,10 +822,9 @@
         function submitClue() {
             const clue = document.getElementById('clue-input').value.trim();
             if (clue && ws) {
-                // A pista é enviada, o backend avança para o próximo turno
                 ws.send(JSON.stringify({ command: "SUBMIT_CLUE", payload: { clue: clue } }));
-                document.getElementById('clue-input').value = ''; // Limpa o campo
-                document.getElementById('clue-input-area').style.display = 'none'; // Desabilita o campo
+                document.getElementById('clue-input').value = ''; 
+                document.getElementById('clue-input-area').style.display = 'none'; 
             } else {
                 alert("Digite uma pista válida.");
             }
@@ -740,7 +834,7 @@
             const select = document.getElementById('vote-select');
             select.innerHTML = '<option value="">-- Selecione o Impostor --</option>';
             players.forEach(player => {
-                if (player.id !== playerId) { // Não pode votar em si mesmo
+                if (player.id !== playerId) { 
                     const option = document.createElement('option');
                     option.value = player.id;
                     option.innerText = player.name;
@@ -761,7 +855,6 @@
         function handleGameOver(results) {
             showScreen('results-screen');
             
-            // Mensagem Principal
             const messageEl = document.getElementById('final-result-message');
             messageEl.innerText = results.message;
             if (results.winner === 'IMPOSTOR') {
@@ -770,12 +863,10 @@
                  messageEl.style.color = 'var(--success-color)';
             }
             
-            // Detalhes
             document.getElementById('results-impostor-name').innerText = results.impostor_name;
             document.getElementById('results-innocent-word').innerText = results.real_word;
             document.getElementById('results-impostor-word').innerText = results.fake_word;
             
-            // Votos
             const tallyContainer = document.getElementById('vote-tally-container');
             tallyContainer.innerHTML = '';
             for (const [votedName, count] of Object.entries(results.votes_tally)) {
@@ -791,7 +882,6 @@
         
         // --- Inicialização ---
         document.addEventListener('DOMContentLoaded', () => {
-             // Tenta recuperar o nome do LocalStorage
              const storedName = localStorage.getItem('playerName');
              if (storedName) {
                  document.getElementById('player-name').value = storedName;
@@ -801,7 +891,6 @@
                  localStorage.setItem('playerName', e.target.value);
              });
              
-             // Por padrão, mostra a tela inicial
              showScreen('home-screen');
         });
         
